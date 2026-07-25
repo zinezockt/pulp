@@ -369,6 +369,7 @@ pub use gate_v4::*;
 
 mod avx;
 mod avx2;
+mod f16c;
 mod fma;
 mod sse;
 mod sse2;
