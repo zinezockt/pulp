@@ -1403,6 +1403,25 @@ impl Simd for V4 {
 	}
 }
 
+/// Defines a function whose body is pasted directly inside a
+/// `#[target_feature]`-tagged inner function covering [`V4`]'s full feature
+/// set, instead of being passed as a closure value through
+/// [`V4::vectorize`]'s `imp`/`imp_fastcall` trampoline.
+#[macro_export]
+macro_rules! v4_fn {
+	($(#[$attr:meta])* $vis:vis fn $name:ident $(<$($gen:tt),* $(,)?>)? ($($arg:ident : $ty:ty),* $(,)?) $(-> $ret:ty)? $body:block) => {
+		$(#[$attr])*
+		$vis fn $name $(<$($gen),*>)? ($($arg : $ty),*) $(-> $ret)? {
+			#[target_feature(enable = "sse,sse2,fxsr,sse3,ssse3,sse4.1,sse4.2,popcnt,avx,avx2,bmi1,bmi2,fma,lzcnt,avx512f,avx512bw,avx512cd,avx512dq,avx512vl")]
+			unsafe fn __v4_fn_impl $(<$($gen),*>)? ($($arg : $ty),*) $(-> $ret)? {
+				$body
+			}
+			#[allow(unused_unsafe)]
+			unsafe { __v4_fn_impl($($arg),*) }
+		}
+	};
+}
+
 impl V4 {
 	binop_512_nosign!(avx512f: add, "Adds the elements of each lane of `a` and `b`.", f32 x 16, f64 x 8);
 
