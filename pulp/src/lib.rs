@@ -79,6 +79,14 @@
 	feature(stdarch_neon_fcma),
 	feature(stdarch_neon_dotprod)
 )]
+// 32-bit ARM NEON is still unstable in stdarch (rust-lang/rust#111800, #150246).
+// Gated on pulp `nightly` + arm so stable x86/aarch64 builds are unaffected.
+#![cfg_attr(
+	all(feature = "nightly", target_arch = "arm"),
+	feature(stdarch_arm_neon_intrinsics),
+	feature(arm_target_feature),
+	feature(stdarch_arm_feature_detection)
+)]
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -3458,6 +3466,14 @@ pub mod wasm;
 #[cfg_attr(docsrs, doc(cfg(target_arch = "aarch64")))]
 /// Low level aarch64 API.
 pub mod aarch64;
+
+/// Low level 32-bit ARM NEON API.
+///
+/// Requires pulp `--features nightly` and a nightly toolchain: `core::arch::arm`
+/// NEON is still unstable on the stable channel.
+#[cfg(all(feature = "nightly", target_arch = "arm"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "nightly", target_arch = "arm"))))]
+pub mod arm;
 
 /// Mask type with 8 bits. Its bit pattern is either all ones or all zeros. Unsafe code must not
 /// depend on this, however.

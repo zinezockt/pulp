@@ -56,6 +56,74 @@ impl core::ops::Deref for V4 {
 	}
 }
 
+simd_type!({
+	/// [`V4`] plus AVX-512VBMI2 (`vpexpand*`/`vpcompress*` at byte/word
+	/// granularity, among others).
+	///
+	/// Kept as its own capability type rather than a field on [`V4`]: VBMI2
+	/// is not part of the baseline five extensions (`f/bw/cd/dq/vl`) that
+	/// `V4::try_new` checks for. Skylake-X/Cascade Lake/Cooper Lake Xeons
+	/// have that baseline but *not* VBMI2 (only Ice Lake+/Zen4+ do) -- so
+	/// folding it into `V4` would make `V4::try_new` regress to `None` on
+	/// that hardware, silently losing every existing AVX-512 kernel there,
+	/// not just gaining VBMI2 for the new ones. Mirrors how `f16c` is
+	/// already checked separately from `V3` at call sites instead of being
+	/// a `V3` field.
+	#[allow(missing_docs)]
+	pub struct V4Vbmi2 {
+		pub sse: f!("sse"),
+		pub sse2: f!("sse2"),
+		pub fxsr: f!("fxsr"),
+		pub sse3: f!("sse3"),
+		pub ssse3: f!("ssse3"),
+		pub sse4_1: f!("sse4.1"),
+		pub sse4_2: f!("sse4.2"),
+		pub popcnt: f!("popcnt"),
+		pub avx: f!("avx"),
+		pub avx2: f!("avx2"),
+		pub bmi1: f!("bmi1"),
+		pub bmi2: f!("bmi2"),
+		pub fma: f!("fma"),
+		pub lzcnt: f!("lzcnt"),
+		pub avx512f: f!("avx512f"),
+		pub avx512bw: f!("avx512bw"),
+		pub avx512cd: f!("avx512cd"),
+		pub avx512dq: f!("avx512dq"),
+		pub avx512vl: f!("avx512vl"),
+		pub avx512vbmi2: f!("avx512vbmi2"),
+	}
+});
+
+impl core::ops::Deref for V4Vbmi2 {
+	type Target = V4;
+
+	#[inline(always)]
+	fn deref(&self) -> &Self::Target {
+		V4 {
+			sse: self.sse,
+			sse2: self.sse2,
+			fxsr: self.fxsr,
+			sse3: self.sse3,
+			ssse3: self.ssse3,
+			sse4_1: self.sse4_1,
+			sse4_2: self.sse4_2,
+			popcnt: self.popcnt,
+			avx: self.avx,
+			avx2: self.avx2,
+			bmi1: self.bmi1,
+			bmi2: self.bmi2,
+			fma: self.fma,
+			lzcnt: self.lzcnt,
+			avx512f: self.avx512f,
+			avx512bw: self.avx512bw,
+			avx512cd: self.avx512cd,
+			avx512dq: self.avx512dq,
+			avx512vl: self.avx512vl,
+		}
+		.to_ref()
+	}
+}
+
 #[cfg(target_arch = "x86_64")]
 #[inline(always)]
 fn avx512_load_u32s(simd: V4, slice: &[u32]) -> u32x16 {
@@ -1401,6 +1469,67 @@ impl Simd for V4 {
 	fn sqrt_f64s(self, a: Self::f64s) -> Self::f64s {
 		self.sqrt_f64x8(a)
 	}
+}
+
+/// Defines a function whose body is pasted directly inside a
+/// `#[target_feature]`-tagged inner function covering [`V4`]'s full feature
+/// set, instead of being passed as a closure value through
+/// [`V4::vectorize`]'s `imp`/`imp_fastcall` trampoline.
+#[macro_export]
+macro_rules! v4_fn {
+	($(#[$attr:meta])* $vis:vis fn $name:ident $(<$($gen:tt),* $(,)?>)? ($($arg:ident : $ty:ty),* $(,)?) $(-> $ret:ty)? $body:block) => {
+		$(#[$attr])*
+		$vis fn $name $(<$($gen),*>)? ($($arg : $ty),*) $(-> $ret)? {
+			#[target_feature(enable = "sse,sse2,fxsr,sse3,ssse3,sse4.1,sse4.2,popcnt,avx,avx2,bmi1,bmi2,fma,lzcnt,avx512f,avx512bw,avx512cd,avx512dq,avx512vl")]
+			unsafe fn __v4_fn_impl $(<$($gen),*>)? ($($arg : $ty),*) $(-> $ret)? {
+				$body
+			}
+			#[allow(unused_unsafe)]
+			unsafe { __v4_fn_impl($($arg),*) }
+		}
+	};
+}
+
+impl V4Vbmi2 {
+	/// Compresses the lanes of `a` selected by `mask` into a contiguous
+	/// prefix (in ascending lane order), zero-filling the remaining lanes.
+	/// Safe counterpart to
+	/// [`_mm512_maskz_compress_epi16`](Avx512vbmi2::_mm512_maskz_compress_epi16).
+	#[inline(always)]
+	pub fn mask_compress_u16x32(self, mask: b32, a: u16x32) -> u16x32 {
+		let mask: __mmask32 = mask.0;
+		cast!(self.avx512vbmi2._mm512_maskz_compress_epi16(mask, cast!(a)))
+	}
+
+	/// Expands the contiguous prefix of `a` out to the lanes selected by
+	/// `mask` (in ascending lane order), zero-filling the unselected lanes.
+	/// Safe counterpart to
+	/// [`_mm512_maskz_expand_epi16`](Avx512vbmi2::_mm512_maskz_expand_epi16).
+	#[inline(always)]
+	pub fn mask_expand_u16x32(self, mask: b32, a: u16x32) -> u16x32 {
+		let mask: __mmask32 = mask.0;
+		cast!(self.avx512vbmi2._mm512_maskz_expand_epi16(mask, cast!(a)))
+	}
+}
+
+/// Same as [`v4_fn!`], but for [`V4Vbmi2`]: also enables `avx512vbmi2` in
+/// the pasted-in body's target-feature set. By convention,
+/// a function defined this way should take
+/// a `V4Vbmi2` token as one of its arguments, proving the caller already
+/// checked for VBMI2 specifically and not just the plain `V4` baseline.
+#[macro_export]
+macro_rules! v4_vbmi2_fn {
+	($(#[$attr:meta])* $vis:vis fn $name:ident $(<$($gen:tt),* $(,)?>)? ($($arg:ident : $ty:ty),* $(,)?) $(-> $ret:ty)? $body:block) => {
+		$(#[$attr])*
+		$vis fn $name $(<$($gen),*>)? ($($arg : $ty),*) $(-> $ret)? {
+			#[target_feature(enable = "sse,sse2,fxsr,sse3,ssse3,sse4.1,sse4.2,popcnt,avx,avx2,bmi1,bmi2,fma,lzcnt,avx512f,avx512bw,avx512cd,avx512dq,avx512vl,avx512vbmi2")]
+			unsafe fn __v4_vbmi2_fn_impl $(<$($gen),*>)? ($($arg : $ty),*) $(-> $ret)? {
+				$body
+			}
+			#[allow(unused_unsafe)]
+			unsafe { __v4_vbmi2_fn_impl($($arg),*) }
+		}
+	};
 }
 
 impl V4 {
