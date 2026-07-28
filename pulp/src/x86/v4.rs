@@ -4272,6 +4272,47 @@ impl V4 {
 
 		(cast!(ab_lo), cast!(ab_hi))
 	}
+
+	/// Scatters 16 `u32` values from `src` into `slice`, at the given
+	/// element `indices`, using AVX-512F's native 32-bit scatter. Lanes
+	/// where `mask`'s bit is unset are skipped entirely
+	///
+	/// This is the safe counterpart to the raw
+	/// [`_mm512_mask_i32scatter_epi32`](Avx512f::_mm512_mask_i32scatter_epi32):
+	/// the caller only has to prove a slice bound instead of a raw
+	/// pointer's dereferenceability.
+	#[inline(always)]
+	pub fn scatter_u32x16(self, slice: &mut [u32], mask: b16, indices: u32x16, src: u32x16) {
+		let raw_mask: __mmask16 = mask.0;
+		let idx = [
+			indices.0, indices.1, indices.2, indices.3, indices.4, indices.5, indices.6,
+			indices.7, indices.8, indices.9, indices.10, indices.11, indices.12, indices.13,
+			indices.14, indices.15,
+		];
+		for (lane, &i) in idx.iter().enumerate() {
+			if (raw_mask >> lane) & 1 != 0 {
+				assert!(
+					(i as usize) < slice.len(),
+					"scatter_u32x16: index out of bounds"
+				);
+			}
+		}
+
+		let offsets: __m512i = cast!(indices);
+		let values: __m512i = cast!(src);
+		// SAFETY: every masked-in index was bounds-checked above against
+		// `slice.len()`. Masked-off lanes are guaranteed by the hardware to
+		// never access memory, so their (possibly out-of-bounds) indices
+		// are never dereferenced.
+		unsafe {
+			self.avx512f._mm512_mask_i32scatter_epi32::<4>(
+				slice.as_mut_ptr() as *mut i32,
+				raw_mask,
+				offsets,
+				values,
+			);
+		}
+	}
 }
 
 #[cfg(target_arch = "x86_64")]
