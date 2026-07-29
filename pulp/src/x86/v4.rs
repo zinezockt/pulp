@@ -4313,6 +4313,53 @@ impl V4 {
 			);
 		}
 	}
+
+	/// Gathers 16 `u16` values from `slice`, at the given element `indices`,
+	/// using AVX-512F's native 32-bit gather (byte scale 2, i.e. one `u16`
+	/// element per index unit) and keeping only the low 16 bits of each
+	/// gathered 32-bit lane. Lanes where `mask`'s bit is unset take their
+	/// value from `merge` instead of gathering.
+	#[inline(always)]
+	pub fn gather_u16x16_low(
+		self,
+		slice: &[u16],
+		mask: b16,
+		indices: u32x16,
+		merge: u16x16,
+	) -> u16x16 {
+		let raw_mask: __mmask16 = mask.0;
+		let idx = [
+			indices.0, indices.1, indices.2, indices.3, indices.4, indices.5, indices.6,
+			indices.7, indices.8, indices.9, indices.10, indices.11, indices.12, indices.13,
+			indices.14, indices.15,
+		];
+		for (lane, &i) in idx.iter().enumerate() {
+			if (raw_mask >> lane) & 1 != 0 {
+				assert!(
+					(i as usize) + 1 < slice.len(),
+					"gather_u16x16_low: index out of bounds (needs 1-element headroom)"
+				);
+			}
+		}
+
+		let offsets: __m512i = cast!(indices);
+		// Widen `merge` into 32-bit lanes for the gather's merge source; the
+		// high 16 bits of each widened lane are discarded when the result is
+		// narrowed back down below, so their value doesn't matter.
+		let merge_wide = self.avx512f._mm512_cvtepu16_epi32(cast!(merge));
+		// SAFETY: every masked-in index was bounds-checked above against
+		// `slice.len() - 1` (one extra element of headroom for the native
+		// 4-byte read).
+		let gathered: __m512i = unsafe {
+			self.avx512f._mm512_mask_i32gather_epi32::<2>(
+				merge_wide,
+				raw_mask,
+				offsets,
+				slice.as_ptr() as *const i32,
+			)
+		};
+		cast!(self.avx512f._mm512_cvtepi32_epi16(gathered))
+	}
 }
 
 #[cfg(target_arch = "x86_64")]
