@@ -1605,11 +1605,15 @@ macro_rules! scalar_simd_cmp {
 		paste! {
 			#[inline]
 			fn [<$func _ $ty s>](self, a: Self::[<$ty s>], b: Self::[<$ty s>]) -> Self::[<$mask s>] {
-				let mut out = [$mask::new(false); Self::[<$ty:upper _LANES>]];
+				let mut out = [$mask::new(false); Self::[<$mask:upper _LANES>]];
 				let a: [$ty; Self::[<$ty:upper _LANES>]] = cast(a);
 				let b: [$ty; Self::[<$ty:upper _LANES>]] = cast(b);
+				const RATIO: usize = Self::[<$mask:upper _LANES>] / Self::[<$ty:upper _LANES>];
 				for i in 0..Self::[<$ty:upper _LANES>] {
-					out[i] = $mask::new(a[i].$op(&b[i]));
+					let m = $mask::new(a[i].$op(&b[i]));
+					for j in 0..RATIO {
+						out[i * RATIO + j] = m;
+					}
 				}
 				cast(out)
 			}
