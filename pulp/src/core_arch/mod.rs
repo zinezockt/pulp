@@ -203,7 +203,7 @@ macro_rules! __impl_type {
 #[rustfmt::skip]
 #[macro_export]
 macro_rules! __impl_type {
-    ("neon") => { $crate::core_arch::arm::Neon };
+    ("neon") => { $crate::core_arch::aarch32::Neon };
 }
 
 #[cfg(target_arch = "aarch64")]
@@ -468,7 +468,7 @@ pub mod aarch64;
 
 #[cfg(all(feature = "nightly", target_arch = "arm"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "nightly", target_arch = "arm"))))]
-pub mod arm;
+pub mod aarch32;
 
 #[cfg(target_arch = "wasm32")]
 #[cfg_attr(docsrs, doc(cfg(target_arch = "wasm32")))]

@@ -3530,12 +3530,9 @@ pub mod wasm;
 pub mod aarch64;
 
 /// Low level 32-bit ARM NEON API.
-///
-/// Requires pulp `--features nightly` and a nightly toolchain: `core::arch::arm`
-/// NEON is still unstable on the stable channel.
 #[cfg(all(feature = "nightly", target_arch = "arm"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "nightly", target_arch = "arm"))))]
-pub mod arm;
+pub mod aarch32;
 
 /// Mask type with 8 bits. Its bit pattern is either all ones or all zeros. Unsafe code must not
 /// depend on this, however.

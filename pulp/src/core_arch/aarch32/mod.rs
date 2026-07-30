@@ -3,10 +3,6 @@
 //! Gated on pulp `nightly` + `target_arch = "arm"` because Rust's
 //! `core::arch::arm` NEON surface (`stdarch_arm_neon_intrinsics`) and the
 //! `neon` target feature are still unstable on the stable channel.
-//!
-//! Subset focused on ZIP/RLE-style byte reconstruct (OpenEXR log-depth
-//! prefix sum): `vdupq_n_u8`, `vaddq_u8`, `vextq_u8`, lane extract, and a
-//! software `vqtbl1q_u8` (AArch32 has no 128-bit `vqtbl1q`).
 
 use super::arch;
 use arch::*;
@@ -66,13 +62,38 @@ impl Neon {
 		fn vextq_u8<const N: i32>(a: uint8x16_t, b: uint8x16_t) -> uint8x16_t;
 		fn vgetq_lane_u8<const IMM5: i32>(v: uint8x16_t) -> u8;
 		fn vsetq_lane_u8<const IMM5: i32>(a: u8, b: uint8x16_t) -> uint8x16_t;
+
+		// f32 lane ops
+		fn vdupq_n_f32(value: f32) -> float32x4_t;
+		fn vaddq_f32(a: float32x4_t, b: float32x4_t) -> float32x4_t;
+		fn vsubq_f32(a: float32x4_t, b: float32x4_t) -> float32x4_t;
+		fn vmulq_f32(a: float32x4_t, b: float32x4_t) -> float32x4_t;
+
+		// u32/u16 lane ops software f32<->f16 bit-trick
+		fn vdupq_n_u32(value: u32) -> uint32x4_t;
+		fn vandq_u32(a: uint32x4_t, b: uint32x4_t) -> uint32x4_t;
+		fn veorq_u32(a: uint32x4_t, b: uint32x4_t) -> uint32x4_t;
+		fn vorrq_u32(a: uint32x4_t, b: uint32x4_t) -> uint32x4_t;
+		fn vaddq_u32(a: uint32x4_t, b: uint32x4_t) -> uint32x4_t;
+		fn vsubq_u32(a: uint32x4_t, b: uint32x4_t) -> uint32x4_t;
+		fn vcgeq_u32(a: uint32x4_t, b: uint32x4_t) -> uint32x4_t;
+		fn vcgtq_u32(a: uint32x4_t, b: uint32x4_t) -> uint32x4_t;
+		fn vcltq_u32(a: uint32x4_t, b: uint32x4_t) -> uint32x4_t;
+		fn vbslq_u32(mask: uint32x4_t, a: uint32x4_t, b: uint32x4_t) -> uint32x4_t;
+		fn vshrq_n_u32<const N: i32>(a: uint32x4_t) -> uint32x4_t;
+		fn vshlq_n_u32<const N: i32>(a: uint32x4_t) -> uint32x4_t;
+		fn vmovn_u32(a: uint32x4_t) -> uint16x4_t;
+		fn vmovl_u16(a: uint16x4_t) -> uint32x4_t;
+		fn vcombine_u16(lo: uint16x4_t, hi: uint16x4_t) -> uint16x8_t;
+		fn vget_low_u16(a: uint16x8_t) -> uint16x4_t;
+		fn vget_high_u16(a: uint16x8_t) -> uint16x4_t;
+		fn vsetq_lane_u16<const IMM4: i32>(a: u16, b: uint16x8_t) -> uint16x8_t;
+		fn vgetq_lane_u16<const IMM4: i32>(v: uint16x8_t) -> u16;
+		fn vreinterpretq_f32_u32(a: uint32x4_t) -> float32x4_t;
+		fn vreinterpretq_u32_f32(a: float32x4_t) -> uint32x4_t;
 	});
 
 	/// AArch64-compatible `vqtbl1q_u8` for a 16-byte table.
-	///
-	/// AArch32 NEON only exposes 64-bit `vtbl`/`vtbx`. For a full 16×16 lookup
-	/// we fall back to a small scalar loop (correct; reconstruct only uses an
-	/// all-15 index, so the hot path is still the `vext`/`vadd` tree).
 	#[inline(always)]
 	pub fn vqtbl1q_u8(self, t: uint8x16_t, idx: uint8x16_t) -> uint8x16_t {
 		// Safety: NEON token proves the feature; types are plain 128-bit registers.
