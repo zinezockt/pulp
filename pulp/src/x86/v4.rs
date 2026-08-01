@@ -584,6 +584,76 @@ impl Simd for V4 {
 	}
 
 	#[inline(always)]
+	fn equal_m8s(self, a: Self::m8s, b: Self::m8s) -> Self::m8s {
+		b64(!(a.0 ^ b.0))
+	}
+
+	#[inline(always)]
+	fn equal_m16s(self, a: Self::m16s, b: Self::m16s) -> Self::m16s {
+		b32(!(a.0 ^ b.0))
+	}
+
+	#[inline(always)]
+	fn equal_m32s(self, a: Self::m32s, b: Self::m32s) -> Self::m32s {
+		b16(!(a.0 ^ b.0))
+	}
+
+	#[inline(always)]
+	fn equal_m64s(self, a: Self::m64s, b: Self::m64s) -> Self::m64s {
+		b8(!(a.0 ^ b.0))
+	}
+
+	#[inline(always)]
+	fn transmute_u8s_m8s(self, a: Self::m8s) -> Self::u8s {
+		self.convert_mask_b64_to_u8x64(a)
+	}
+
+	#[inline(always)]
+	fn transmute_m8s_u8s(self, a: Self::u8s) -> Self::m8s {
+		b64(self.avx512bw._mm512_movepi8_mask(cast!(a)))
+	}
+
+	#[inline(always)]
+	fn transmute_u16s_m16s(self, a: Self::m16s) -> Self::u16s {
+		self.convert_mask_b32_to_u16x32(a)
+	}
+
+	#[inline(always)]
+	fn transmute_m16s_u16s(self, a: Self::u16s) -> Self::m16s {
+		b32(self.avx512bw._mm512_movepi16_mask(cast!(a)))
+	}
+
+	#[inline(always)]
+	fn transmute_u32s_m32s(self, a: Self::m32s) -> Self::u32s {
+		self.convert_mask_b16_to_u32x16(a)
+	}
+
+	#[inline(always)]
+	fn transmute_m32s_u32s(self, a: Self::u32s) -> Self::m32s {
+		b16(self.avx512dq._mm512_movepi32_mask(cast!(a)))
+	}
+
+	#[inline(always)]
+	fn transmute_u64s_m64s(self, a: Self::m64s) -> Self::u64s {
+		self.convert_mask_b8_to_u64x8(a)
+	}
+
+	#[inline(always)]
+	fn transmute_m64s_u64s(self, a: Self::u64s) -> Self::m64s {
+		b8(self.avx512dq._mm512_movepi64_mask(cast!(a)))
+	}
+
+	#[inline(always)]
+	fn and_m8s(self, a: Self::m8s, b: Self::m8s) -> Self::m8s {
+		b64(a.0 & b.0)
+	}
+
+	#[inline(always)]
+	fn and_m16s(self, a: Self::m16s, b: Self::m16s) -> Self::m16s {
+		b32(a.0 & b.0)
+	}
+
+	#[inline(always)]
 	fn and_m32s(self, a: Self::m32s, b: Self::m32s) -> Self::m32s {
 		b16(a.0 & b.0)
 	}
@@ -1155,6 +1225,16 @@ impl Simd for V4 {
 	}
 
 	#[inline(always)]
+	fn or_m8s(self, a: Self::m8s, b: Self::m8s) -> Self::m8s {
+		b64(a.0 | b.0)
+	}
+
+	#[inline(always)]
+	fn or_m16s(self, a: Self::m16s, b: Self::m16s) -> Self::m16s {
+		b32(a.0 | b.0)
+	}
+
+	#[inline(always)]
 	fn or_m32s(self, a: Self::m32s, b: Self::m32s) -> Self::m32s {
 		b16(a.0 | b.0)
 	}
@@ -1448,6 +1528,16 @@ impl Simd for V4 {
 	#[inline(always)]
 	fn wrapping_dyn_shr_u32s(self, a: Self::u32s, amount: Self::u32s) -> Self::u32s {
 		self.shr_dyn_u32x16(a, self.and_u32x16(amount, self.splat_u32x16(32 - 1)))
+	}
+
+	#[inline(always)]
+	fn xor_m8s(self, a: Self::m8s, b: Self::m8s) -> Self::m8s {
+		b64(a.0 ^ b.0)
+	}
+
+	#[inline(always)]
+	fn xor_m16s(self, a: Self::m16s, b: Self::m16s) -> Self::m16s {
+		b32(a.0 ^ b.0)
 	}
 
 	#[inline(always)]
@@ -4285,9 +4375,9 @@ impl V4 {
 	pub fn scatter_u32x16(self, slice: &mut [u32], mask: b16, indices: u32x16, src: u32x16) {
 		let raw_mask: __mmask16 = mask.0;
 		let idx = [
-			indices.0, indices.1, indices.2, indices.3, indices.4, indices.5, indices.6,
-			indices.7, indices.8, indices.9, indices.10, indices.11, indices.12, indices.13,
-			indices.14, indices.15,
+			indices.0, indices.1, indices.2, indices.3, indices.4, indices.5, indices.6, indices.7,
+			indices.8, indices.9, indices.10, indices.11, indices.12, indices.13, indices.14,
+			indices.15,
 		];
 		for (lane, &i) in idx.iter().enumerate() {
 			if (raw_mask >> lane) & 1 != 0 {
@@ -4329,9 +4419,9 @@ impl V4 {
 	) -> u16x16 {
 		let raw_mask: __mmask16 = mask.0;
 		let idx = [
-			indices.0, indices.1, indices.2, indices.3, indices.4, indices.5, indices.6,
-			indices.7, indices.8, indices.9, indices.10, indices.11, indices.12, indices.13,
-			indices.14, indices.15,
+			indices.0, indices.1, indices.2, indices.3, indices.4, indices.5, indices.6, indices.7,
+			indices.8, indices.9, indices.10, indices.11, indices.12, indices.13, indices.14,
+			indices.15,
 		];
 		for (lane, &i) in idx.iter().enumerate() {
 			if (raw_mask >> lane) & 1 != 0 {
