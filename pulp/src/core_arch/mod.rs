@@ -173,6 +173,7 @@ macro_rules! __impl_type {
     ("avx512vbmi") => { $crate::core_arch::x86::Avx512vbmi };
     ("avx512vpopcntdq") => { $crate::core_arch::x86::Avx512vpopcntdq };
     ("avx512vbmi2") => { $crate::core_arch::x86::Avx512vbmi2 };
+    ("avx512fp16") => { $crate::core_arch::x86::Avx512fp16 };
     ("avx512gfni") => { $crate::core_arch::x86::Avx512gfni };
     ("avx512vaes") => { $crate::core_arch::x86::Avx512vaes };
     ("avx512vpclmulqdq") => { $crate::core_arch::x86::Avx512vpclmulqdq };

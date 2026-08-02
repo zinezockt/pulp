@@ -1622,6 +1622,125 @@ macro_rules! v4_vbmi2_fn {
 	};
 }
 
+// Prototype only AVX-512 FP16 
+simd_type!({
+	/// [`V4`] plus AVX-512 FP16 (native half-precision arithmetic: `add`/`sub`/`mul`/
+	/// `fmadd_ph`, plus the extension's own `cvtxps_ph`/`cvtxph_ps` f32<->f16
+	/// conversion, distinct from the AVX512F conversion `V4` already exposes).
+	#[allow(missing_docs)]
+	pub struct V4Fp16 {
+		pub sse: f!("sse"),
+		pub sse2: f!("sse2"),
+		pub fxsr: f!("fxsr"),
+		pub sse3: f!("sse3"),
+		pub ssse3: f!("ssse3"),
+		pub sse4_1: f!("sse4.1"),
+		pub sse4_2: f!("sse4.2"),
+		pub popcnt: f!("popcnt"),
+		pub avx: f!("avx"),
+		pub avx2: f!("avx2"),
+		pub bmi1: f!("bmi1"),
+		pub bmi2: f!("bmi2"),
+		pub fma: f!("fma"),
+		pub lzcnt: f!("lzcnt"),
+		pub avx512f: f!("avx512f"),
+		pub avx512bw: f!("avx512bw"),
+		pub avx512cd: f!("avx512cd"),
+		pub avx512dq: f!("avx512dq"),
+		pub avx512vl: f!("avx512vl"),
+		pub avx512fp16: f!("avx512fp16"),
+	}
+});
+
+impl core::ops::Deref for V4Fp16 {
+	type Target = V4;
+
+	#[inline(always)]
+	fn deref(&self) -> &Self::Target {
+		V4 {
+			sse: self.sse,
+			sse2: self.sse2,
+			fxsr: self.fxsr,
+			sse3: self.sse3,
+			ssse3: self.ssse3,
+			sse4_1: self.sse4_1,
+			sse4_2: self.sse4_2,
+			popcnt: self.popcnt,
+			avx: self.avx,
+			avx2: self.avx2,
+			bmi1: self.bmi1,
+			bmi2: self.bmi2,
+			fma: self.fma,
+			lzcnt: self.lzcnt,
+			avx512f: self.avx512f,
+			avx512bw: self.avx512bw,
+			avx512cd: self.avx512cd,
+			avx512dq: self.avx512dq,
+			avx512vl: self.avx512vl,
+		}
+		.to_ref()
+	}
+}
+
+impl V4Fp16 {
+	#[inline(always)]
+	fn fp16_cast<T, U>(value: T) -> U {
+		#[allow(clippy::missing_transmute_annotations)]
+		unsafe {
+			core::mem::transmute_copy(&value)
+		}
+	}
+
+	#[inline(always)]
+	pub fn add_f16x32(self, a: u16x32, b: u16x32) -> u16x32 {
+		Self::fp16_cast(self.avx512fp16._mm512_add_ph(Self::fp16_cast(a), Self::fp16_cast(b)))
+	}
+
+	#[inline(always)]
+	pub fn sub_f16x32(self, a: u16x32, b: u16x32) -> u16x32 {
+		Self::fp16_cast(self.avx512fp16._mm512_sub_ph(Self::fp16_cast(a), Self::fp16_cast(b)))
+	}
+
+	#[inline(always)]
+	pub fn mul_f16x32(self, a: u16x32, b: u16x32) -> u16x32 {
+		Self::fp16_cast(self.avx512fp16._mm512_mul_ph(Self::fp16_cast(a), Self::fp16_cast(b)))
+	}
+	#[inline(always)]
+	pub fn fmadd_f16x32(self, a: u16x32, b: u16x32, c: u16x32) -> u16x32 {
+		Self::fp16_cast(self.avx512fp16._mm512_fmadd_ph(
+			Self::fp16_cast(a),
+			Self::fp16_cast(b),
+			Self::fp16_cast(c),
+		))
+	}
+
+	#[inline(always)]
+	pub fn cvtx_f32x16_to_f16x16_bits(self, a: f32x16) -> u16x16 {
+		Self::fp16_cast(self.avx512fp16._mm512_cvtxps_ph(cast!(a)))
+	}
+
+	#[inline(always)]
+	pub fn cvtx_f16x16_bits_to_f32x16(self, a: u16x16) -> f32x16 {
+		cast!(self.avx512fp16._mm512_cvtxph_ps(Self::fp16_cast(a)))
+	}
+}
+
+// Prototype-only, see [`V4Fp16`].
+#[macro_export]
+macro_rules! v4_fp16_fn {
+	($(#[$attr:meta])* $vis:vis fn $name:ident $(<$($gen:tt),* $(,)?>)? ($($arg:ident : $ty:ty),* $(,)?) $(-> $ret:ty)? $body:block) => {
+		$(#[$attr])*
+		$vis fn $name $(<$($gen),*>)? ($($arg : $ty),*) $(-> $ret)? {
+			#[target_feature(enable = "sse,sse2,fxsr,sse3,ssse3,sse4.1,sse4.2,popcnt,avx,avx2,bmi1,bmi2,fma,lzcnt,avx512f,avx512bw,avx512cd,avx512dq,avx512vl,avx512fp16")]
+			unsafe fn __v4_fp16_fn_impl $(<$($gen),*>)? ($($arg : $ty),*) $(-> $ret)? {
+				$body
+			}
+			#[allow(unused_unsafe)]
+			unsafe { __v4_fp16_fn_impl($($arg),*) }
+		}
+	};
+}
+
 impl V4 {
 	binop_512_nosign!(avx512f: add, "Adds the elements of each lane of `a` and `b`.", f32 x 16, f64 x 8);
 
